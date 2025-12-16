@@ -88,11 +88,12 @@ def run_calendario_spider(temporada_ruta="2526"):
     )
     process.start()
 
-def run_acta_spider(temporada_ruta="2526"):
+def run_acta_spider(temporada_ruta="2526", toda_temporada=False):
     process = get_process()
     process.crawl(
         ActasSpider,
         temporada_ruta=temporada_ruta,
+        toda_temporada=toda_temporada
     )
     process.start()
 
@@ -115,6 +116,7 @@ def main():
     scrape_parser.add_argument("--temporada", default="2025-26")
     scrape_parser.add_argument("--temporada_ruta", default="2526")
     scrape_parser.add_argument("--tipo", default="futbol-11")
+    scrape_parser.add_argument("--toda_temporada", action="store_true")
     args = parser.parse_args()
 
 
@@ -134,7 +136,7 @@ def main():
         elif args.target == "calendarios":
             run_calendario_spider() 
         elif args.target == "actas":
-            run_acta_spider(temporada_ruta=args.temporada_ruta) 
+            run_acta_spider(temporada_ruta=args.temporada_ruta, toda_temporada=args.toda_temporada) 
         elif args.target == "campos":
             run_campo_spider() 
 

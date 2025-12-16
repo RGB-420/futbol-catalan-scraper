@@ -552,6 +552,7 @@ class ActasPostgresPipeline:
         self.cur.execute("""
             INSERT INTO "Alineaciones" ("idPartido", "idEquipo", "idJugador", "Titular", "Dorsal")
             VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT ("idPartido", "idEquipo", "idJugador") DO NOTHING
         """, (id_partido, id_equipo, id_jugador, titular, dorsal))
 
     def get_or_create_staff(self, nombre, apellidos):
@@ -604,6 +605,7 @@ class ActasPostgresPipeline:
         self.cur.execute("""
             INSERT INTO "StaffPartidos" ("idPartido", "idEquipo", "idStaff", "Rol")
             VALUES (%s, %s, %s, %s)
+            ON CONFLICT ("idPartido", "idEquipo", "idStaff") DO NOTHING
         """, (id_partido, id_equipo, id_staff, rol))
 
     def map_tipo_tarjeta(self, tipo):
@@ -620,6 +622,7 @@ class ActasPostgresPipeline:
         self.cur.execute("""
             INSERT INTO "Eventos" ("idPartido", "idJugador", "idEquipo", "Minuto", "TipoEvento")
             VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT ("idPartido", "idJugador", "Minuto", "TipoEvento") DO NOTHING
         """, (id_partido, id_jugador, id_equipo, minuto, tipo_evento))
 
         self.conn.commit()
@@ -641,19 +644,24 @@ class ActasPostgresPipeline:
             WHERE "idJugador" = %s
         """, (id_jugador,))
         
-        row = self.cur.fetchone()
-        return row[0] if row else None
+        rows = self.cur.fetchall()
+        return [row[0] for row in rows]
     
     def deducir_equipo_gol(self, id_jugador, id_local, id_visitante):
-        id_equipo_jugador = self.get_equipo_del_jugador(id_jugador)
+        equipos_jugador = set(self.get_equipo_del_jugador(id_jugador))
+        equipos_partido = {id_local, id_visitante}
 
-        if id_equipo_jugador == id_local:
-            return id_local
-        elif id_equipo_jugador == id_visitante:
-            return id_visitante
-        else:
-            print(f"[WARNING] Jugador {id_jugador} no está asociado a local ni visitante.")
+        interseccion = equipos_jugador & equipos_partido
+
+        if len(interseccion) == 1:
+            return interseccion.pop()
+
+        if len(interseccion) > 1:
+            print(f"[WARNING] Jugador {id_jugador} asociado a ambos equipos.")
             return None
+
+        print(f"[WARNING] Jugador {id_jugador} no está asociado a local ni visitante.")
+        return None
     
     def process_item(self, item, spider):
         if spider.name != "acta":

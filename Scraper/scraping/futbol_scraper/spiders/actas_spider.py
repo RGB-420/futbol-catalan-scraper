@@ -1,5 +1,6 @@
 import scrapy
 import re
+from datetime import date
 from db.connection import get_connection
 from ..items import ActasItem
 from scrapy import signals
@@ -7,10 +8,11 @@ from scrapy import signals
 class ActasSpider(scrapy.Spider):
     name = "acta"
     
-    def __init__(self, temporada="2025-2026", temporada_ruta="2526", *args, **kwargs):
+    def __init__(self, temporada="2025-2026", temporada_ruta="2526", toda_temporada=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.temporada = temporada
         self.temporada_ruta = temporada_ruta
+        self.toda_temporada = toda_temporada
 
     def start_requests(self):
         """
@@ -33,15 +35,28 @@ class ActasSpider(scrapy.Spider):
         for slug_competicion, abreviatura, slug_grupo, id_grupo in competiciones:
             with get_connection() as conn:
                 with conn.cursor() as cur:
-                    sql = """
-                        SELECT eql."slug", eqv."slug", pa."idEquipoLocal", pa."idEquipoVisitante"
-                        FROM "Partidos" pa
-                        JOIN "Equipos" eql ON pa."idEquipoLocal" = eql."idEquipo"
-                        JOIN "Equipos" eqv ON pa."idEquipoVisitante" = eqv."idEquipo"
-                        WHERE pa."idGrupo" = %s
-                    """
-                    cur.execute(sql, (id_grupo,))
-                    equipos = cur.fetchall()
+                    if self.toda_temporada:
+                        sql = """
+                            SELECT eql."slug", eqv."slug", pa."idEquipoLocal", pa."idEquipoVisitante"
+                            FROM "Partidos" pa
+                            JOIN "Equipos" eql ON pa."idEquipoLocal" = eql."idEquipo"
+                            JOIN "Equipos" eqv ON pa."idEquipoVisitante" = eqv."idEquipo"
+                            WHERE pa."idGrupo" = %s
+                        """
+                        cur.execute(sql, (id_grupo,))
+                        equipos = cur.fetchall()
+                    else:
+                        sql = """
+                            SELECT eql."slug", eqv."slug", pa."idEquipoLocal", pa."idEquipoVisitante"
+                            FROM "Partidos" pa
+                            JOIN "Equipos" eql ON pa."idEquipoLocal" = eql."idEquipo"
+                            JOIN "Equipos" eqv ON pa."idEquipoVisitante" = eqv."idEquipo"
+                            WHERE pa."idGrupo" = %s 
+                                and pa."EstadoPartido" != 'Acabado' 
+                                and pa."FechaPartido" < %s
+                        """
+                        cur.execute(sql, (id_grupo, date.today()))
+                        equipos = cur.fetchall()
 
             for eq_local, eq_visitante, id_local, id_visitante in equipos:
                 url = f"https://www.fcf.cat/acta/{self.temporada_ruta}/futbol-11/{slug_competicion}/{slug_grupo}/{abreviatura}/{eq_local}/{abreviatura}/{eq_visitante}"
