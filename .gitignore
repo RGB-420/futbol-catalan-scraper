@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+.scrapy/
+.ipynb_checkpoints/
+Diagrama.pgerd
+Tablas.sql
+ideas.txt
