@@ -649,8 +649,9 @@ class ActasPostgresPipeline:
     
     def deducir_equipo_gol(self, id_jugador, id_local, id_visitante):
         equipos_jugador = set(self.get_equipo_del_jugador(id_jugador))
+        print(equipos_jugador)
         equipos_partido = {id_local, id_visitante}
-
+        print(equipos_partido)
         interseccion = equipos_jugador & equipos_partido
 
         if len(interseccion) == 1:
@@ -906,10 +907,9 @@ class ActasPostgresPipeline:
             apellidos = gol["apellidos"]
             tipo = self.map_tipo_gol(gol["tipo"])
             minuto = gol["minuto"]
+            id_equipo = gol["id_equipo"]
 
             id_jugador = self.get_or_create_jugador(nombre, apellidos)
-
-            id_equipo = self.deducir_equipo_gol(id_jugador, id_local, id_visitante)
 
             self.insert_evento(id_partido, id_jugador, id_equipo, minuto, tipo)
 

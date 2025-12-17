@@ -133,7 +133,7 @@ class ActasSpider(scrapy.Spider):
 
         return equipo_tecnico
     
-    def parse_goles(self, tabla):
+    def parse_goles(self, tabla, escudo_local, escudo_visitante, id_local, id_visitante):
         goles = []
 
         for row in tabla.xpath('.//tbody/tr'):
@@ -164,11 +164,27 @@ class ActasSpider(scrapy.Spider):
             minuto = row.xpath('./td[last()]/text()').get()
             minuto = minuto.replace("'", "").strip() if minuto else ""
 
+            escudo_gol = row.xpath(
+                './/img[contains(@class, "acta-escut-gol")]/@src'
+            ).get()
+
+            escudo_gol_norm = self.normalizar_escudo(escudo_gol)
+
+            if escudo_gol_norm == escudo_local:
+                id_equipo = id_local
+
+            elif escudo_gol_norm == escudo_visitante:
+                id_equipo = id_visitante
+
+            else:
+                id_equipo = None
+
             goles.append({
                 "tipo": tipo,
                 "nombre": nombre,
                 "apellidos": apellidos,
-                "minuto": minuto
+                "minuto": minuto,
+                "id_equipo":id_equipo
             })
 
         return goles
@@ -220,14 +236,32 @@ class ActasSpider(scrapy.Spider):
             })
 
         return tarjetas
+    
+    def normalizar_escudo(self, url):
+        return url.split('/')[-1] if url else None
 
     def parse_acta(self, response):
         item = ActasItem()
 
         item["id_grupo"] = response.meta["id_grupo"]
-        item["id_local"] = response.meta["id_local"]
-        item["id_visitante"] = response.meta["id_visitante"]
+        id_local = response.meta["id_local"]
+        id_visitante = response.meta["id_visitante"]
 
+        item["id_local"] = id_local
+        item["id_visitante"] = id_visitante
+        # -----------------------------
+        # ESCUDOS
+        # -----------------------------
+        escudo_local = response.xpath(
+            '//div[@class="acta-head"]/div[contains(@class, "acta-escut")][1]/a/img/@src'
+        ).get()
+
+        escudo_visitante = response.xpath(
+            '//div[@class="acta-head"]/div[contains(@class, "acta-escut")][last()]/a/img/@src'
+        ).get()
+
+        escudo_local_norm = self.normalizar_escudo(escudo_local)
+        escudo_visitante_norm = self.normalizar_escudo(escudo_visitante)
         # -----------------------------
         # FECHA Y HORA
         # -----------------------------
@@ -324,24 +358,28 @@ class ActasSpider(scrapy.Spider):
         item["apellidos_arbitro"] = apellidos_arbitro
         item["delegacion_arbitro"] = delegacion
 
+        col_local = response.xpath('//div[contains(@class, "col-md-4")][1]')
+        col_visitante = response.xpath('//div[contains(@class, "col-md-4")][last()]')
+
         # -----------------------------
         # TITULARES
         # -----------------------------
-        tablas_titulares = response.xpath(
-            '//table[@class="acta-table"][thead/tr/th[contains(text(), "Titulars")]]'
-        )
-
         jugadores_local = []
         jugadores_visitante = []
 
-        if len(tablas_titulares) == 0:
-            print("⚠️ No hay tablas de titulares en este partido.")
-        elif len(tablas_titulares) == 1:
-            print("⚠️ Solo aparece una tabla de titulares.")
-            jugadores_local = self.parse_jugadores(tablas_titulares[0])
-        else:
-            jugadores_local = self.parse_jugadores(tablas_titulares[0])
-            jugadores_visitante = self.parse_jugadores(tablas_titulares[1])
+        tabla_jugadores_local = col_local.xpath(
+            './/table[@class="acta-table"][thead/tr/th[contains(text(), "Titulars")]]'
+        )
+
+        if tabla_jugadores_local:
+            jugadores_local = self.parse_jugadores(tabla_jugadores_local)
+
+        tabla_jugadores_visitante = col_visitante.xpath(
+            './/table[@class="acta-table"][thead/tr/th[contains(text(), "Titulars")]]'
+        )
+
+        if tabla_jugadores_visitante:
+            jugadores_visitante = self.parse_jugadores(tabla_jugadores_visitante)
 
         item['jugadores_local'] = jugadores_local
         item['jugadores_visitante'] = jugadores_visitante
@@ -349,21 +387,22 @@ class ActasSpider(scrapy.Spider):
         # -----------------------------
         # SUPLENTES
         # -----------------------------
-        tablas_suplentes = response.xpath(
-            '//table[@class="acta-table"][thead/tr/th[contains(text(), "Suplents")]]'
-        )
-
         suplentes_local = []
         suplentes_visitante = []
 
-        if len(tablas_suplentes) == 0:
-            print("⚠️ No hay tablas de suplentes en este partido.")
-        elif len(tablas_suplentes) == 1:
-            print("⚠️ Solo aparece una tabla de suplentes.")
-            suplentes_local = self.parse_jugadores(tablas_suplentes[0])
-        else:
-            suplentes_local = self.parse_jugadores(tablas_suplentes[0])
-            suplentes_visitante = self.parse_jugadores(tablas_suplentes[1])
+        tablas_suplentes_local = col_local.xpath(
+            './/table[@class="acta-table"][thead/tr/th[contains(text(), "Suplents")]]'
+        )
+
+        if tablas_suplentes_local:
+            suplentes_local = self.parse_jugadores(tablas_suplentes_local)
+
+        tablas_suplentes_visitante = col_visitante.xpath(
+            './/table[@class="acta-table"][thead/tr/th[contains(text(), "Suplents")]]'
+        )
+
+        if tablas_suplentes_visitante:
+            suplentes_visitante = self.parse_jugadores(tablas_suplentes_visitante)
 
         item['suplentes_local'] = suplentes_local
         item['suplentes_visitante'] = suplentes_visitante
@@ -371,21 +410,22 @@ class ActasSpider(scrapy.Spider):
         # -----------------------------
         # CUERPO TÉCNICO
         # -----------------------------
-        tablas_staff = response.xpath(
-            '//table[@class="acta-table"][thead/tr/th[contains(text(), "Equip Tècnic")]]'
-        )
-
         staff_local = []
         staff_visitante = []
 
-        if len(tablas_staff) == 0:
-            print("⚠️ No hay tablas de staff en este partido.")
-        elif len(tablas_staff) == 1:
-            print("⚠️ Solo aparece una tabla de staff.")
-            staff_local = self.parse_equip_tecnic(tablas_staff[0])
-        else:
-            staff_local = self.parse_equip_tecnic(tablas_staff[0])
-            staff_visitante = self.parse_equip_tecnic(tablas_staff[1])
+        tablas_staff_local = col_local.xpath(
+            './/table[@class="acta-table"][thead/tr/th[contains(text(), "Equip Tècnic")]]'
+        )
+
+        if tablas_staff_local:
+            staff_local = self.parse_equip_tecnic(tablas_staff_local)
+
+        tablas_staff_visitante = col_visitante.xpath(
+            './/table[@class="acta-table"][thead/tr/th[contains(text(), "Equip Tècnic")]]'
+        )
+
+        if tablas_staff_visitante:
+            staff_visitante = self.parse_equip_tecnic(tablas_staff_visitante)
 
         item['staff_local'] = staff_local
         item['staff_visitante'] = staff_visitante
@@ -402,28 +442,29 @@ class ActasSpider(scrapy.Spider):
         if len(tablas_goles) == 0:
             print("⚠️ No hay tablas de goles en este partido.")
         elif len(tablas_goles) == 1:
-            goles = self.parse_goles(tablas_goles[0])
+            goles = self.parse_goles(tablas_goles[0], escudo_local_norm, escudo_visitante_norm, id_local, id_visitante)
 
         item['goles'] = goles
 
         # -----------------------------
         # TARJETAS
         # -----------------------------
-        tablas_tarjetas = response.xpath(
-            '//table[@class="acta-table"][thead/tr/th[contains(text(), "Targetes")]]'
-        )
-
         tarjetas_local = []
         tarjetas_visitante = []
 
-        if len(tablas_tarjetas) == 0:
-            print("⚠️ No hay tablas de tarjetas en este partido.")
-        elif len(tablas_tarjetas) == 1:
-            print("⚠️ Solo aparece una tabla de tarjetas.")
-            tarjetas_local = self.parse_tarjetas(tablas_tarjetas[0])
-        else:
-            tarjetas_local = self.parse_tarjetas(tablas_tarjetas[0])
-            tarjetas_visitante = self.parse_tarjetas(tablas_tarjetas[1])
+        tablas_tarjetas_local = col_local.xpath(
+            './/table[@class="acta-table"][thead/tr/th[contains(text(), "Targetes")]]'
+        )
+
+        if tablas_tarjetas_local:
+            tarjetas_local = self.parse_tarjetas(tablas_tarjetas_local)
+
+        tablas_tarjetas_visitante = col_visitante.xpath(
+            './/table[@class="acta-table"][thead/tr/th[contains(text(), "Targetes")]]'
+        )
+
+        if tablas_tarjetas_visitante:
+            tarjetas_visitante = self.parse_tarjetas(tablas_tarjetas_visitante)
 
         item['tarjetas_local'] = tarjetas_local
         item['tarjetas_visitante'] = tarjetas_visitante
