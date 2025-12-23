@@ -38,7 +38,7 @@ class ClubesSpider(scrapy.Spider):
 
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute('SELECT slug FROM public."Clubes";')
+        cur.execute('SELECT slug FROM public.clubes;')
         rows = cur.fetchall()
         cur.close()
         conn.close()

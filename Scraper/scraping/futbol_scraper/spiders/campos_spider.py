@@ -18,9 +18,9 @@ class CamposSpider(scrapy.Spider):
         cur = conn.cursor()
 
         sql = """
-        SELECT "CodigoWeb"
-            FROM public."Campos" 
-            WHERE "NombreCampo" IS NULL
+        SELECT codigo_web
+            FROM public.campos 
+            WHERE nombre_campo IS NULL
         """
 
         cur.execute(sql)

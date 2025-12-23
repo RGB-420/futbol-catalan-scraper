@@ -31,9 +31,9 @@ class CompeticionesPostgresPipeline:
             return item
 
         sql = """
-        INSERT INTO public."Competiciones"
-            ("NombreCompeticion", "Categoria", "EdadMaxima",
-             "Organizador", slug, "CodigoWeb", "Nivel")
+        INSERT INTO public.competiciones
+            (nombre_competicion, categoria, edad_maxima,
+             organizador, slug, codigo_web, nivel)
         VALUES (%s, %s, %s, %s, %s, %s, %s);
         """
 
@@ -75,7 +75,7 @@ class GruposPostgresPipeline:
 
         # Buscar idCompeticion a partir de CodigoWeb
         self.cur.execute(
-            'SELECT "idCompeticion" FROM public."Competiciones" WHERE "CodigoWeb" = %s',
+            'SELECT id_competicion FROM public.competiciones WHERE codigo_web = %s',
             (item["codigo_competicion"],),
         )
         row = self.cur.fetchone()
@@ -86,12 +86,12 @@ class GruposPostgresPipeline:
         id_competicion = row[0]
 
         sql = """
-        INSERT INTO public."Grupos"
-            ("idCompeticion","NumeroGrupo","Temporada","Region",slug)
+        INSERT INTO public.grupos
+            (id_competicion,numero_grupo,temporada,region,slug)
         VALUES (%s,%s,%s,%s,%s)
-        ON CONFLICT ("idCompeticion","NumeroGrupo","Temporada")
+        ON CONFLICT (id_competicion,numero_grupo,temporada)
         DO UPDATE SET
-            "Region" = EXCLUDED."Region",
+            region = EXCLUDED.region,
             slug     = EXCLUDED.slug;
         """
 
@@ -146,11 +146,11 @@ class EquiposYClubesPostgresPipeline:
         """
         self.cur.execute(
             '''
-            SELECT c."Categoria"
-            FROM public."Grupos" g
-            JOIN public."Competiciones" c
-              ON g."idCompeticion" = c."idCompeticion"
-            WHERE g."idGrupo" = %s
+            SELECT c.categoria
+            FROM public.grupos g
+            JOIN public.competiciones c
+              ON g.id_competicion = c.id_competicion
+            WHERE g.id_grupo = %s
             ''',
             (id_grupo,),
         )
@@ -162,7 +162,7 @@ class EquiposYClubesPostgresPipeline:
         Devuelve idClub. Si no existe, lo crea.
         """
         self.cur.execute(
-            'SELECT "idClub" FROM public."Clubes" WHERE slug = %s',
+            'SELECT id_club FROM public.clubes WHERE slug = %s',
             (slug,),
         )
         row = self.cur.fetchone()
@@ -170,17 +170,17 @@ class EquiposYClubesPostgresPipeline:
             id_club = row[0]
             # Actualizamos nombre por si cambia cómo lo muestra la FCF
             self.cur.execute(
-                'UPDATE public."Clubes" SET "NombreClub" = %s WHERE "idClub" = %s',
+                'UPDATE public.clubes SET nombre_club = %s WHERE id_club = %s',
                 (nombre_club, id_club),
             )
             return id_club
 
-        self.cur.execute('SELECT COALESCE(MAX("idClub"), 0) + 1 FROM public."Clubes"')
+        self.cur.execute('SELECT COALESCE(MAX(id_club), 0) + 1 FROM public.clubes')
         id_club = self.cur.fetchone()[0]
 
         self.cur.execute(
             '''
-            INSERT INTO public."Clubes" ("idClub", slug, "NombreClub")
+            INSERT INTO public.clubes (id_club, slug, nombre_club)
             VALUES (%s, %s, %s)
             ''',
             (id_club, slug, nombre_club),
@@ -194,11 +194,11 @@ class EquiposYClubesPostgresPipeline:
         """
         self.cur.execute(
             '''
-            SELECT "idEquipo"
-            FROM public."Equipos"
-            WHERE "idClub" = %s
-              AND "idGrupo" = %s
-              AND COALESCE("Nivel", 1) = COALESCE(%s, 1)
+            SELECT id_equipo
+            FROM public.equipos
+            WHERE id_club = %s
+              AND id_grupo = %s
+              AND COALESCE(nivel, 1) = COALESCE(%s, 1)
             ''',
             (id_club, id_grupo, nivel),
         )
@@ -207,9 +207,9 @@ class EquiposYClubesPostgresPipeline:
             id_equipo = row[0]
             self.cur.execute(
                 '''
-                UPDATE public."Equipos"
-                SET "Categoria" = COALESCE(%s, "Categoria"),
-                    "Nivel"     = COALESCE(%s, "Nivel"),
+                UPDATE public.equipose
+                SET categoria = COALESCE(%s, categoria),
+                    nivel     = COALESCE(%s, nivel),
                     slug        = COALESCE(%s, slug)
                 WHERE "idEquipo" = %s
                 ''',
@@ -218,13 +218,13 @@ class EquiposYClubesPostgresPipeline:
             return id_equipo
 
         # No existe todavía -> crear nuevo
-        self.cur.execute('SELECT COALESCE(MAX("idEquipo"), 0) + 1 FROM public."Equipos"')
+        self.cur.execute('SELECT COALESCE(MAX(id_equipo), 0) + 1 FROM public.equipos')
         id_equipo = self.cur.fetchone()[0]
 
         self.cur.execute(
             '''
-            INSERT INTO public."Equipos"
-                ("idEquipo", "idClub", "Categoria", "Nivel", "idGrupo", slug)
+            INSERT INTO public.equipos
+                (id_equipo, id_club, categoria, nivel, id_grupo, slug)
             VALUES (%s, %s, %s, %s, %s, %s)
             ''',
             (id_equipo, id_club, categoria, nivel, id_grupo, equipo_slug),
@@ -298,10 +298,10 @@ class ClubesPostgresPipeline:
             return item
 
         sql = """
-        UPDATE public."Clubes"
-        SET "Localidad" = COALESCE(%s, "Localidad"),
-            "Delegacion" = COALESCE(%s, "Delegacion"),
-            "Provincia" = COALESCE(%s, "Provincia")
+        UPDATE public.clubes
+        SET localidad = COALESCE(%s, localidad),
+            delegacion = COALESCE(%s, delegacion),
+            provincia = COALESCE(%s, provincia)
         WHERE slug = %s;
         """
 
@@ -345,16 +345,16 @@ class CalendariosPostgresPipeline:
 
     def _get_equipo_id(self, slug):
         self.cur.execute(
-            'SELECT "idEquipo" FROM public."Equipos" WHERE slug = %s',
+            'SELECT id_equipo FROM public.equipos WHERE slug = %s',
             (slug,)
         )
         return self.cur.fetchone()
 
     def _update_abreviatura_competicion(self, slug, abreviatura):
         sql = """
-            UPDATE "Competiciones"
-            SET "Abreviatura" = %s
-            WHERE "slug" = %s;
+            UPDATE competiciones
+            SET abreviatura = %s
+            WHERE slug = %s;
         """
         self.cur.execute(sql, (abreviatura, slug))
 
@@ -407,12 +407,12 @@ class CalendariosPostgresPipeline:
         # INSERT PARTIDO
         # ----------------------------------
         sql = """
-        INSERT INTO public."Partidos"
-            ("idEquipoLocal", "idEquipoVisitante", "Jornada", "idGrupo")
+        INSERT INTO public.partidos
+            (id_equipo_local, id_equipo_visitante, jornada, id_grupo)
         VALUES (%s,%s,%s,%s)
-        ON CONFLICT ("idEquipoLocal","idEquipoVisitante","Jornada","idGrupo")
+        ON CONFLICT (id_equipo_local,id_Equipo_visitante,jornada,id_grupo)
         DO NOTHING
-        RETURNING "idPartido";
+        RETURNING id_partido;
         """
 
         self.cur.execute(sql, (
@@ -457,8 +457,8 @@ class ActasPostgresPipeline:
 
     def _get_or_create_arbitro(self, nombre, apellidos, delegacion):
         self.cur.execute(
-            'SELECT "idArbitro" FROM public."Arbitros" '
-            'WHERE "NombreArbitro" = %s AND "ApellidosArbitro" = %s AND "Delegacion" = %s',
+            'SELECT id_arbitro FROM public.arbitros '
+            'WHERE nombre_arbitro = %s AND apellidos_arbitro = %s AND delegacion = %s',
             (nombre, apellidos, delegacion)
         )
         row = self.cur.fetchone()
@@ -469,9 +469,9 @@ class ActasPostgresPipeline:
 
         # Crear árbitro
         self.cur.execute(
-            'INSERT INTO public."Arbitros" '
-            '("NombreArbitro", "ApellidosArbitro", "Delegacion") '
-            'VALUES (%s, %s, %s) RETURNING "idArbitro";',
+            'INSERT INTO public.arbitros '
+            '(nombre_arbitro, apellidos_arbitro, delegacion) '
+            'VALUES (%s, %s, %s) RETURNING id_arbitro;',
             (nombre, apellidos, delegacion)
         )
         new_id = self.cur.fetchone()[0]
@@ -482,7 +482,7 @@ class ActasPostgresPipeline:
 
     def _get_or_create_campo(self, codigo):
         self.cur.execute(
-            'SELECT "idCampo" FROM public."Campos" WHERE "CodigoWeb" = %s',
+            'SELECT id_campo FROM public.campos WHERE codigo_web = %s',
             (codigo,)
         )
         row = self.cur.fetchone()
@@ -493,7 +493,7 @@ class ActasPostgresPipeline:
 
         # Insert nuevo campo
         self.cur.execute(
-            'INSERT INTO public."Campos" ("CodigoWeb") VALUES (%s) RETURNING "idCampo";',
+            'INSERT INTO public.campos (codigo_web) VALUES (%s) RETURNING id_campo;',
             (codigo,)
         )
         new_id = self.cur.fetchone()[0]
@@ -505,8 +505,8 @@ class ActasPostgresPipeline:
     def get_or_create_jugador(self, nombre, apellidos):
         # Buscar jugador existente
         self.cur.execute("""
-            SELECT "idJugador" FROM "Jugadores"
-            WHERE "NombreJugador" = %s AND "ApellidosJugador" = %s
+            SELECT id_jugador FROM jugadores
+            WHERE nombre_jugador" = %s AND apellidos_jugador = %s
         """, (nombre, apellidos))
 
         result = self.cur.fetchone()
@@ -517,9 +517,9 @@ class ActasPostgresPipeline:
 
         # Crear jugador nuevo
         self.cur.execute("""
-            INSERT INTO "Jugadores" ("NombreJugador", "ApellidosJugador")
+            INSERT INTO jugadores (nombre_jugador, apellidos_jugador)
             VALUES (%s, %s)
-            RETURNING "idJugador"
+            RETURNING id_jugador
         """, (nombre, apellidos))
 
         new_id = self.cur.fetchone()[0]
@@ -531,8 +531,8 @@ class ActasPostgresPipeline:
 
     def ensure_jugador_equipo(self, id_jugador, id_equipo):
         self.cur.execute("""
-            SELECT 1 FROM "JugadoresEquipos"
-            WHERE "idJugador" = %s AND "idEquipo" = %s
+            SELECT 1 FROM jugadores_equipos
+            WHERE id_jugador = %s AND id_equipo = %s
         """, (id_jugador, id_equipo))
 
         result = self.cur.fetchone()
@@ -542,7 +542,7 @@ class ActasPostgresPipeline:
             return  # Ya existe
 
         self.cur.execute("""
-            INSERT INTO "JugadoresEquipos" ("idJugador", "idEquipo")
+            INSERT INTO jugadores_equipos (id_jugador, id_equipo)
             VALUES (%s, %s)
         """, (id_jugador, id_equipo))
 
@@ -550,16 +550,16 @@ class ActasPostgresPipeline:
     
     def insert_alineacion(self, id_jugador, id_equipo, id_partido, titular, dorsal):
         self.cur.execute("""
-            INSERT INTO "Alineaciones" ("idPartido", "idEquipo", "idJugador", "Titular", "Dorsal")
+            INSERT INTO alineaciones (id_partido, id_equipo, id_jugador, titular, dorsal)
             VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT ("idPartido", "idEquipo", "idJugador") DO NOTHING
+            ON CONFLICT (id_partido, id_equipo, id_jugador) DO NOTHING
         """, (id_partido, id_equipo, id_jugador, titular, dorsal))
 
     def get_or_create_staff(self, nombre, apellidos):
         # Buscar jugador existente
         self.cur.execute("""
-            SELECT "idStaff" FROM "CuerpoTecnico"
-            WHERE "NombreStaff" = %s AND "ApellidoStaff" = %s
+            SELECT id_staff FROM cuerpo_tecnico
+            WHERE nombre_staff = %s AND apellido_staff = %s
         """, (nombre, apellidos))
 
         result = self.cur.fetchone()
@@ -570,9 +570,9 @@ class ActasPostgresPipeline:
 
         # Crear jugador nuevo
         self.cur.execute("""
-            INSERT INTO "CuerpoTecnico" ("NombreStaff", "ApellidoStaff")
+            INSERT INTO cuerpo_tecnico (nombre_staff, apellido_staff)
             VALUES (%s, %s)
-            RETURNING "idStaff"
+            RETURNING id_staff
         """, (nombre, apellidos))
 
         new_id = self.cur.fetchone()[0]
@@ -584,8 +584,8 @@ class ActasPostgresPipeline:
 
     def ensure_staff_equipo(self, id_staff, id_equipo):
         self.cur.execute("""
-            SELECT 1 FROM "StaffEquipos"
-            WHERE "idStaff" = %s AND "idEquipo" = %s
+            SELECT 1 FROM staff_equipos
+            WHERE id_staff = %s AND id_equipo = %s
         """, (id_staff, id_equipo))
 
         result = self.cur.fetchone()
@@ -595,7 +595,7 @@ class ActasPostgresPipeline:
             return  # Ya existe
 
         self.cur.execute("""
-            INSERT INTO "StaffEquipos" ("idStaff", "idEquipo")
+            INSERT INTO staff_equipos (id_staff, id_equipo)
             VALUES (%s, %s)
         """, (id_staff, id_equipo))
 
@@ -603,9 +603,9 @@ class ActasPostgresPipeline:
     
     def insert_staff_partido(self, id_staff, id_equipo, id_partido, rol):
         self.cur.execute("""
-            INSERT INTO "StaffPartidos" ("idPartido", "idEquipo", "idStaff", "Rol")
+            INSERT INTO staff_partidos (id_partido, id_equipo, id_staff, rol)
             VALUES (%s, %s, %s, %s)
-            ON CONFLICT ("idPartido", "idEquipo", "idStaff") DO NOTHING
+            ON CONFLICT (id_partido, id_equipo, id_staff) DO NOTHING
         """, (id_partido, id_equipo, id_staff, rol))
 
     def map_tipo_tarjeta(self, tipo):
@@ -620,9 +620,9 @@ class ActasPostgresPipeline:
     
     def insert_evento(self, id_partido, id_jugador, id_equipo, minuto, tipo_evento):
         self.cur.execute("""
-            INSERT INTO "Eventos" ("idPartido", "idJugador", "idEquipo", "Minuto", "TipoEvento")
+            INSERT INTO eventos (id_partido, id_jugador, id_equipo, minuto, tipo_evento)
             VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT ("idPartido", "idJugador", "Minuto", "TipoEvento") DO NOTHING
+            ON CONFLICT (id_partido, id_jugador, minuto, tipo_evento) DO NOTHING
         """, (id_partido, id_jugador, id_equipo, minuto, tipo_evento))
 
         self.conn.commit()
@@ -640,8 +640,8 @@ class ActasPostgresPipeline:
 
     def get_equipo_del_jugador(self, id_jugador):
         self.cur.execute("""
-            SELECT "idEquipo" FROM "JugadoresEquipos"
-            WHERE "idJugador" = %s
+            SELECT id_equipo FROM jugadores_equipos
+            WHERE idJugador = %s
         """, (id_jugador,))
         
         rows = self.cur.fetchall()
@@ -712,16 +712,16 @@ class ActasPostgresPipeline:
         # PARTIDOS
         # ----------------------------------
         sql = """
-            UPDATE public."Partidos"
-            SET "EstadoPartido" = COALESCE(%s, "EstadoPartido"),
-                "GolesLocal" = COALESCE(%s, "GolesLocal"),
-                "GolesVisitante" = COALESCE(%s, "GolesVisitante"),
-                "idCampo" = COALESCE(%s, "idCampo"),
-                "idArbitro" = COALESCE(%s, "idArbitro"),
-                "FechaPartido" = COALESCE(%s, "FechaPartido"),
-                "HoraPartido" = COALESCE(%s, "HoraPartido")
-            WHERE "idEquipoLocal" = %s and "idEquipoVisitante" = %s and "idGrupo" = %s
-            RETURNING "idPartido";
+            UPDATE public.partidos
+            SET estado_partido = COALESCE(%s, estado_partido),
+                goles_local = COALESCE(%s, goles_local),
+                goles_visitante = COALESCE(%s, goles_visitante),
+                id_campo = COALESCE(%s, id_campo),
+                id_arbitro = COALESCE(%s, id_arbitro),
+                fecha_partido = COALESCE(%s, fecha_partido),
+                hora_partido = COALESCE(%s, hora_partido)
+            WHERE id_equipo_local = %s and id_equipo_visitante = %s and id_grupo = %s
+            RETURNING id_partido;
         """
 
         self.cur.execute(
@@ -946,13 +946,13 @@ class CamposPostgresPipeline:
         provincia = item.get("provincia")
 
         sql = """
-            UPDATE public."Campos"
-            SET "NombreCampo" = COALESCE(%s, "NombreCampo"),
-                "Terreno" = COALESCE(%s, "Terreno"),
-                "Direccion" = COALESCE(%s, "Direccion"),
-                "Localidad" = COALESCE(%s, "Localidad"),
-                "Provincia" = COALESCE(%s, "Provincia")
-            WHERE "CodigoWeb" = %s;
+            UPDATE public.campos
+            SET nombre_campo = COALESCE(%s, nombre_campo),
+                terreno = COALESCE(%s, terreno),
+                direccion = COALESCE(%s, direccion),
+                localidad = COALESCE(%s, localidad),
+                provincia = COALESCE(%s, provincia)
+            WHERE codigo_web = %s;
         """
 
         self.cur.execute(

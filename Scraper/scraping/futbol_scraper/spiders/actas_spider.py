@@ -22,12 +22,12 @@ class ActasSpider(scrapy.Spider):
             with conn.cursor() as cur:
                 sql = """
                 SELECT 
-                    co."slug" AS slug_competicion,
-                    co."Abreviatura" AS abreviatura_grupo,
-                    gr."slug" AS slug_grupo,
-                    gr."idGrupo"
-                FROM "Competiciones" co
-                JOIN "Grupos" gr ON co."idCompeticion" = gr."idCompeticion";
+                    co.slug AS slug_competicion,
+                    co.abreviatura AS abreviatura_grupo,
+                    gr.slug AS slug_grupo,
+                    gr.id_grupo
+                FROM competiciones co
+                JOIN grupos gr ON co.id_competicion = gr.id_competicion;
                 """
                 cur.execute(sql)
                 competiciones = cur.fetchall()
@@ -37,23 +37,23 @@ class ActasSpider(scrapy.Spider):
                 with conn.cursor() as cur:
                     if self.toda_temporada:
                         sql = """
-                            SELECT eql."slug", eqv."slug", pa."idEquipoLocal", pa."idEquipoVisitante"
-                            FROM "Partidos" pa
-                            JOIN "Equipos" eql ON pa."idEquipoLocal" = eql."idEquipo"
-                            JOIN "Equipos" eqv ON pa."idEquipoVisitante" = eqv."idEquipo"
-                            WHERE pa."idGrupo" = %s
+                            SELECT eql.slug, eqv.slug, pa.id_equipo_local", pa.id_equipo_visitante
+                            FROM partidos pa
+                            JOIN equipos eql ON pa.id_equipo_local = eql.id_equipo
+                            JOIN equipos eqv ON pa.id_equipo_visitante = eqv.id_equipo
+                            WHERE pa.id_grupo = %s
                         """
                         cur.execute(sql, (id_grupo,))
                         equipos = cur.fetchall()
                     else:
                         sql = """
-                            SELECT eql."slug", eqv."slug", pa."idEquipoLocal", pa."idEquipoVisitante"
-                            FROM "Partidos" pa
-                            JOIN "Equipos" eql ON pa."idEquipoLocal" = eql."idEquipo"
-                            JOIN "Equipos" eqv ON pa."idEquipoVisitante" = eqv."idEquipo"
-                            WHERE pa."idGrupo" = %s 
-                                and pa."EstadoPartido" != 'Acabado' 
-                                and pa."FechaPartido" < %s
+                            SELECT eql.slug, eqv.slug, pa.id_equipo_local, pa.id_equipo_visitante
+                            FROM partidos pa
+                            JOIN equipos eql ON pa.id_equipo_local = eql.id_equipo
+                            JOIN equipos eqv ON pa.id_equipo_visitante = eqv.id_equipo
+                            WHERE pa.id_grupo = %s 
+                                and pa.estado_partido != 'Acabado' 
+                                and pa.fecha_partido < %s
                         """
                         cur.execute(sql, (id_grupo, date.today()))
                         equipos = cur.fetchall()

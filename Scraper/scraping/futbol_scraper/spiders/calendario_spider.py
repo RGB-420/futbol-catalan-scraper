@@ -21,10 +21,10 @@ class CalendarioSpider(scrapy.Spider):
         cur = conn.cursor()
 
         sql = """
-        SELECT g."idGrupo", g."NumeroGrupo",
+        SELECT g.id_grupo, g.numero_grupo,
                c.slug AS competicion_slug
-        FROM public."Grupos" g
-        JOIN public."Competiciones" c ON c."idCompeticion" = g."idCompeticion"
+        FROM public.grupos g
+        JOIN public.competiciones c ON c.id_competicion = g.id_competicion
         """
 
         cur.execute(sql)

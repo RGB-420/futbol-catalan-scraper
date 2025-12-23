@@ -43,7 +43,7 @@ def run_competiciones_spider():
 def run_grupos_spider(codigo_competicion):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute('SELECT "CodigoWeb" FROM public."Competiciones" WHERE "CodigoWeb" IS NOT NULL;')
+    cur.execute('SELECT codigo_web FROM public.competiciones WHERE codigo_web IS NOT NULL;')
     rows = cur.fetchall()
     cur.close()
     conn.close()

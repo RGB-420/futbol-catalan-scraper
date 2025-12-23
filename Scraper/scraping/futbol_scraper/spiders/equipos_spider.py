@@ -40,15 +40,15 @@ class EquiposSpider(scrapy.Spider):
         cur = conn.cursor()
         cur.execute(
             '''
-            SELECT g."idGrupo",
-                   g."NumeroGrupo",
-                   g."Temporada",
+            SELECT g.id_grupo,
+                   g.numero_grupo,
+                   g.temporada,
                    g.slug AS slug_grupo,
                    c.slug AS slug_competicion
-            FROM public."Grupos" g
-            JOIN public."Competiciones" c
-              ON c."idCompeticion" = g."idCompeticion"
-            WHERE g."Temporada" = %s;
+            FROM public.grupos g
+            JOIN public.competiciones c
+              ON c.id_competicion = g.id_competicion
+            WHERE g.temporada = %s;
             ''',
             (self.temporada,),
         )
